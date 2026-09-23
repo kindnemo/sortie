@@ -1,10 +1,16 @@
+import argparse
+import sys
 import time 
 import shutil
 from pathlib import Path
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from JIT import wait_for_file_completion
-from extension_map import EXT_MAP
+from sortie.core.extension_classifier.JIT import wait_for_file_completion
+from sortie.core.extension_classifier.extension_map import EXT_MAP
 
 
 # Defining a category folder for cross-validating the sub-folders in Handler functions
@@ -107,8 +113,19 @@ class Handler(FileSystemEventHandler):
         self.handle_files(Path(event.dest_path))
 
 
+def main(argv: list[str] | None = None):
+    parser = argparse.ArgumentParser(description="Watch a folder and sort files by extension.")
+    parser.add_argument(
+        "watch_directory",
+        nargs="?",
+        default=str(WATCH_DIRECTORY),
+        help=f"Folder to watch. Defaults to {WATCH_DIRECTORY}",
+    )
+    args = parser.parse_args(argv)
+
+    watch = OnMyWatch(Path(args.watch_directory))
+    watch.run()
 
 
 if __name__ == "__main__":
-    watch = OnMyWatch() 
-    watch.run()
+    main()

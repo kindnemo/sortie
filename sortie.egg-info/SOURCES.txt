@@ -1,0 +1,17 @@
+pyproject.toml
+sortie/__init__.py
+sortie/paths.py
+sortie.egg-info/PKG-INFO
+sortie.egg-info/SOURCES.txt
+sortie.egg-info/dependency_links.txt
+sortie.egg-info/requires.txt
+sortie.egg-info/top_level.txt
+sortie/core/__init__.py
+sortie/core/config.py
+sortie/core/movelog.py
+sortie/core/extension_classifier/JIT.py
+sortie/core/extension_classifier/classifier.py
+sortie/core/extension_classifier/extension_map.py
+sortie/services/__init__.py
+sortie/services/watcher.py
+tests/test_paths.py

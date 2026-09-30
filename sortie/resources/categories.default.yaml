@@ -1,0 +1,112 @@
+categories:
+
+  Images:
+    children:
+
+      animal:
+        primary: "a photograph of an animal such as a dog, cat, bird, or wildlife, where the animal is the main subject of the image"
+        ensemble:
+          - "a photograph of an animal such as a dog, cat, bird, or wildlife, where the animal is the main subject of the image"
+          - "a nature or pet photograph featuring an animal as the central subject, without any text overlays or graphic design elements"
+          - "a close-up or full-body photograph of a real animal in a natural setting, home, or studio"
+          - "a wildlife or domestic animal photograph showing a single creature or group of animals"
+
+      codesnippet:
+        primary: "a code snippet or block of programming code displayed with syntax highlighting, typically on a dark background in a code editor or terminal"
+        ensemble:
+          - "a code snippet or block of programming code displayed with syntax highlighting, typically on a dark background in a code editor or terminal"
+          - "a screenshot or styled image of source code with monospace font, line numbers, and coloured syntax highlighting"
+          - "programming code shown in an IDE, terminal window, or as a styled code card shared on social media"
+          - "a block of computer code with keywords highlighted in different colours, shown against a dark or light editor background"
+
+      documents:
+        primary: "a scanned or photographed text document such as a letter, contract, form, or office file containing paragraphs of text with no itemized pricing or receipt format"
+        ensemble:
+          - "a scanned or photographed text document such as a letter, contract, form, or office file containing paragraphs of text with no itemized pricing or receipt format"
+          - "an office document or formal letter with blocks of paragraph text, headings, and no product pricing or transaction totals"
+          - "a printed or digital document such as a report, agreement, or form with continuous prose text and standard document formatting"
+          - "a text-heavy official document including applications, certificates, contracts, or letters, without any columns of prices or itemized lists"
+
+      food:
+        primary: "a close-up photograph of a prepared meal, dish, or food item presented on a plate, bowl, or surface, with food as the sole subject"
+        ensemble:
+          - "a close-up photograph of a prepared meal, dish, or food item presented on a plate, bowl, or surface, with food as the sole subject"
+          - "a food photography shot of a dish, snack, dessert, or drink taken in a restaurant, kitchen, or studio setting"
+          - "an appetizing photograph of cooked or prepared food arranged on a plate or table, shot from above or at an angle"
+          - "a photograph showcasing a specific food item or full meal, emphasizing colour and texture, without people as the main focus"
+
+      infographic:
+        primary: "an infographic combining icons, charts, diagrams, and short text labels arranged in a structured visual layout to present information or data"
+        ensemble:
+          - "an infographic combining icons, charts, diagrams, and short text labels arranged in a structured visual layout to present information or data"
+          - "a designed visual explainer with colourful icons, numbered sections, pie charts or bar graphs, and brief captions"
+          - "an information graphic or data visualization poster that uses illustrations and minimal text to communicate statistics or steps"
+          - "a visually designed educational or marketing graphic with a mix of icons, short bullet points, and structured sections on a coloured background"
+
+      meme:
+        primary: "an internet meme with bold white or black text caption overlaid directly on a photograph or illustration, typically humorous or satirical in nature"
+        ensemble:
+          - "an internet meme with bold white or black text caption overlaid directly on a photograph or illustration, typically humorous or satirical in nature"
+          - "a viral internet meme image featuring a photograph or drawing with large impact font text written across the top and bottom"
+          - "a humorous meme image where text has been added on top of a photo or reaction image to create a joke or commentary"
+          - "a social media meme consisting of an image macro with superimposed bold text used for comedic or satirical effect"
+          - "a slightly distorted or out of proportion photo of people"
+
+      real_people:
+        primary: "a natural photograph of one or more real people such as a portrait, selfie, candid shot, or group photo, with no text overlaid on the image"
+        ensemble:
+          - "a natural photograph of one or more real people such as a portrait, selfie, candid shot, or group photo, with no text overlaid on the image"
+          - "a candid or posed photograph of a real human being, showing their face or full body in a natural or studio environment"
+          - "a portrait or lifestyle photograph featuring a person or group of people as the main subject, without meme text or graphic design elements"
+          - "a real photograph of a human subject including selfies, professional headshots, street photography, or group photos without any caption text"
+
+      receipt:
+        primary: "a printed or photographed receipt, bill, or invoice showing a narrow columnar list of purchased items with individual prices and a total amount due at the bottom"
+        ensemble:
+          - "a printed or photographed receipt, bill, or invoice showing a narrow columnar list of purchased items with individual prices and a total amount due at the bottom"
+          - "a transaction receipt from a shop, restaurant, or online order showing item names, quantities, unit prices, taxes, and a grand total"
+          - "a paper or digital receipt with a structured list of line items and monetary amounts, typically narrow in format with a store name at the top"
+          - "a purchase receipt or payment bill with itemized pricing columns, subtotal, tax, and total due, printed in small monospace font"
+
+      wallpapers:
+        primary: "a high resolution decorative image specifically composed for use as a desktop or phone wallpaper, featuring artistic lighting, wide framing, and a visually striking subject"
+        ensemble:
+          - "a high resolution decorative image specifically composed for use as a desktop or phone wallpaper, featuring artistic lighting, wide framing, and a visually striking subject"
+          - "a professionally composed wide-format photograph or digital artwork designed to fill a computer or phone screen as a background image"
+          - "a visually polished landscape, abstract, or artistic photograph with widescreen aspect ratio and high production quality intended as a screen background"
+          - "a desktop wallpaper image with cinematic framing, vivid colours, and deliberate artistic composition, designed to be aesthetically pleasing at full screen size"
+
+  Documents:
+    children:
+      resume:
+        primary: "a resume or CV listing work experience, education, and professional skills"
+        ensemble:
+          - "a resume or CV listing work experience, education, and professional skills"
+          - "a job application document showing a candidate's career history, qualifications, and contact details"
+          - "a structured CV with sections for employment history, academic background, and skill set"
+          - "a professional resume with clearly defined sections including work experience, education, and achievements"
+
+      invoice:
+        primary: "an invoice or bill listing purchased items or services with individual prices and a total amount due"
+        ensemble:
+          - "an invoice or bill listing purchased items or services with individual prices and a total amount due"
+          - "a payment invoice with line items, quantities, unit costs, subtotal, tax, and grand total"
+          - "a financial invoice document from a business showing itemised charges and payment terms"
+          - "a billing document showing product descriptions, prices, and a payment total"
+
+      legal:
+        primary: "a legal contract or formal agreement between two or more parties with numbered clauses and signature blocks"
+        ensemble:
+          - "a legal contract or formal agreement between two or more parties with numbered clauses and signature blocks"
+          - "a legal document such as a contract, terms of service, or agreement with binding obligations and conditions"
+          - "a formal legal agreement with definitions, obligations, and signature sections"
+          - "a contract document containing legal language, party names, numbered articles, and execution blocks"
+
+  Videos:
+    primary: "a video file"
+
+  Apps:
+    primary: "an application or software installer file"
+
+  Archives:
+    primary: "a compressed archive file such as a zip or rar containing files"

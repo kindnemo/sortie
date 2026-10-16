@@ -3,6 +3,7 @@ import json
 import numpy as np
 from sortie.paths import data_path
 from datetime import datetime
+from sortie.core.hash_util import compute_file_hash
 
 def _connect():
     """
@@ -39,6 +40,10 @@ def _connect():
                     created_at TEXT
                 )""")
 
+
+    # Create an index on the embeddings table for faster lookups by file_hash
+    conn.execute("""CREATE INDEX IF NOT EXISTS idx_embeddings_hash ON embeddings(file_hash)""")
+    
     return conn
 
 
@@ -161,7 +166,7 @@ def mark_undone(move_id):
 
 
 
-def store_embedding(file_path, embedding, model_name, modality):
+def store_embedding(file_path, embedding, model_name, modality, file_hash = None):
     """
     Store (or update) the embedding for a file.
 
@@ -170,13 +175,15 @@ def store_embedding(file_path, embedding, model_name, modality):
         embedding (np.ndarray): the embedding vector
         model_name (str): name of the model used to generate the embedding
         modality (str): e.g. "image" or "text"
+        file_hash (str or None): the SHA-256 hash of the file; if None
     Returns:
         None
     """
 
     embedding_bits = embedding.astype(np.float32).tobytes()
     created_at = datetime.now().isoformat()
-    file_hash = None
+    if file_hash is None:
+        file_hash = compute_file_hash(file_path)
 
     conn = _connect()
 
@@ -213,9 +220,9 @@ def get_all_embeddings(model_name, modality = None):
     rows = conn.execute(query, params).fetchall()
 
     conn.close()
-    moves = []
+    embeds = []
     for row in rows:
-        move = {
+        entry = {
             "id": row["id"], 
             "file_path": row["file_path"],
             "file_hash": row["file_hash"],
@@ -225,8 +232,8 @@ def get_all_embeddings(model_name, modality = None):
             "created_at": row["created_at"]
         }
 
-        moves.append(move)
-    return moves
+        embeds.append(entry)
+    return embeds
 
 
 def delete_embedding(file_path):
@@ -234,3 +241,25 @@ def delete_embedding(file_path):
     conn.execute("DELETE FROM embeddings WHERE file_path = ?", (file_path, ))
     conn.commit()
     conn.close()
+
+
+def get_embedding_by_hash(file_hash, model_name, modality):
+    """
+    Return the embedding for a file using its hash
+    
+    Args:
+        file_hash (str): the SHA-256 hash of the file
+        model_name (str): the name of the model
+        modality (str): the modality of the embedding
+    Returns:
+        np.ndarray or None: the embedding vector, or None if not found
+    """
+
+    conn = _connect()
+    row = conn.execute("SELECT * FROM embeddings WHERE file_hash = ? AND model_name = ? AND modality = ?", (file_hash, model_name, modality)).fetchone()   #Fetchone is used only for cache check use case for now, change this if trying to use for duplicate detection 
+    conn.close()
+
+    if row is None:
+        return None
+
+    return np.frombuffer(row["embedding"], dtype=np.float32)

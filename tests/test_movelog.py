@@ -107,7 +107,7 @@ def make_vector(seed=0):
 
 def test_store_and_retrieve_embedding(fresh_db):
     vec = make_vector()
-    movelog.store_embedding("/tmp/a.jpg", vec, "ViT-B-16", "image")
+    movelog.store_embedding("/tmp/a.jpg", vec, "ViT-B-16", "image", file_hash="hash-a")
 
     rows = movelog.get_all_embeddings("ViT-B-16", "image")
     assert len(rows) == 1
@@ -121,8 +121,8 @@ def test_store_embedding_replaces_not_duplicates(fresh_db):
     vec1 = make_vector(seed=1)
     vec2 = make_vector(seed=2)
 
-    movelog.store_embedding("/tmp/a.jpg", vec1, "ViT-B-16", "image")
-    movelog.store_embedding("/tmp/a.jpg", vec2, "ViT-B-16", "image")
+    movelog.store_embedding("/tmp/a.jpg", vec1, "ViT-B-16", "image", file_hash="hash-a")
+    movelog.store_embedding("/tmp/a.jpg", vec2, "ViT-B-16", "image", file_hash="hash-a")
 
     rows = movelog.get_all_embeddings("ViT-B-16", "image")
     assert len(rows) == 1
@@ -130,8 +130,8 @@ def test_store_embedding_replaces_not_duplicates(fresh_db):
 
 
 def test_get_all_embeddings_filters_by_model(fresh_db):
-    movelog.store_embedding("/a.jpg", make_vector(1), "ViT-B-16", "image")
-    movelog.store_embedding("/b.jpg", make_vector(2), "other-model", "image")
+    movelog.store_embedding("/a.jpg", make_vector(1), "ViT-B-16", "image", file_hash="hash-a")
+    movelog.store_embedding("/b.jpg", make_vector(2), "other-model", "image", file_hash="hash-b")
 
     rows = movelog.get_all_embeddings("ViT-B-16")
     assert len(rows) == 1
@@ -139,8 +139,8 @@ def test_get_all_embeddings_filters_by_model(fresh_db):
 
 
 def test_get_all_embeddings_filters_by_modality(fresh_db):
-    movelog.store_embedding("/a.jpg", make_vector(1), "ViT-B-16", "image")
-    movelog.store_embedding("/a.txt", make_vector(2), "ViT-B-16", "text")
+    movelog.store_embedding("/a.jpg", make_vector(1), "ViT-B-16", "image", file_hash="hash-a")
+    movelog.store_embedding("/a.txt", make_vector(2), "ViT-B-16", "text", file_hash="hash-b")
 
     rows = movelog.get_all_embeddings("ViT-B-16", modality="text")
     assert len(rows) == 1
@@ -150,8 +150,36 @@ def test_get_all_embeddings_filters_by_modality(fresh_db):
 # ---------- delete_embedding ----------
 
 def test_delete_embedding_removes_row(fresh_db):
-    movelog.store_embedding("/a.jpg", make_vector(), "ViT-B-16", "image")
+    movelog.store_embedding("/a.jpg", make_vector(), "ViT-B-16", "image", file_hash="hash-a")
     movelog.delete_embedding("/a.jpg")
 
     rows = movelog.get_all_embeddings("ViT-B-16")
     assert rows == []
+
+
+# ---------- get_embedding_by_hash ----------
+
+def test_get_embedding_by_hash_returns_matching_embedding(fresh_db):
+    vec = make_vector(seed=3)
+    movelog.store_embedding("/a.jpg", vec, "ViT-B-16", "image", file_hash="same-hash")
+
+    result = movelog.get_embedding_by_hash("same-hash", "ViT-B-16", "image")
+
+    assert result is not None
+    np.testing.assert_allclose(result, vec, rtol=1e-5)
+
+
+def test_get_embedding_by_hash_returns_none_for_hash_miss(fresh_db):
+    movelog.store_embedding("/a.jpg", make_vector(seed=3), "ViT-B-16", "image", file_hash="stored-hash")
+
+    assert movelog.get_embedding_by_hash("missing-hash", "ViT-B-16", "image") is None
+
+
+@pytest.mark.parametrize(
+    ("model_name", "modality"),
+    [("other-model", "image"), ("ViT-B-16", "text")],
+)
+def test_get_embedding_by_hash_filters_model_and_modality(fresh_db, model_name, modality):
+    movelog.store_embedding("/a.jpg", make_vector(seed=3), "ViT-B-16", "image", file_hash="shared-hash")
+
+    assert movelog.get_embedding_by_hash("shared-hash", model_name, modality) is None

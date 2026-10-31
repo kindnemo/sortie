@@ -8,6 +8,9 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "platformdirs",
+    "watchdog",
+    "pyyaml",
+    "numpy",
 ]
 
 [tool.setuptools.packages.find]

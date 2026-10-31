@@ -1,6 +1,4 @@
-from collections import defaultdict
 import yaml
-import shutil
 from pathlib import Path
 
 class CategoryNode:
@@ -9,6 +7,9 @@ class CategoryNode:
 
     Will read the YAML from category_config.yaml and convert it into a tree structure of CategoryNode objects. Each node can have multiple children that will enable the CategoryNode to be represented into a hierarchical structure.
     """
+
+    # Adding default categories path
+    DEFAULT_CATEGORIES_PATH = Path(__file__).parent.parent / "resources" / "categories.default.yaml"
 
     def __init__(self, name, prompts=None, children=None):
         self.name = name 
@@ -62,13 +63,13 @@ class CategoryNode:
         Returns:
             CategoryNode: A CategoryNode object created from the dictionary.    
         """
-
+        data = data or {}
         if "ensemble" in data:
             prompts = data["ensemble"]
         elif "primary" in data:
             prompts = [data["primary"]]
         else:
-            prompts = []
+            prompts = [] 
 
         children = {}
 
@@ -77,3 +78,18 @@ class CategoryNode:
                 children[child_name] = CategoryNode.from_dict(child_name, child_data)
 
         return CategoryNode(name, prompts, children)
+
+    @staticmethod
+    def load_category_tree(path=DEFAULT_CATEGORIES_PATH):
+        """
+        Loads the category tree from a YAML file and returns the root CategoryNode.
+
+        Args:
+            path (str or Path): The path to the YAML file containing the category structure.
+        Returns:
+            CategoryNode: The root CategoryNode of the category tree.   
+        """
+
+        with open(path, "r", encoding="utf-8") as f:
+            raw_data = yaml.safe_load(f) or {}
+        return CategoryNode.from_dict("root", {"children": raw_data.get("categories", {})})

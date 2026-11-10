@@ -1,5 +1,6 @@
 import sqlite3
 import json
+from pathlib import Path
 import numpy as np
 from sortie.paths import data_path
 from datetime import datetime
@@ -27,7 +28,8 @@ def _connect():
                     chain TEXT,
                     confidence REAL,
                     needs_review INTEGER,
-                    undone INTEGER DEFAULT 0
+                    undone INTEGER DEFAULT 0,
+                    file_hash TEXT
                 )""")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS embeddings(
@@ -43,11 +45,13 @@ def _connect():
 
     # Create an index on the embeddings table for faster lookups by file_hash
     conn.execute("""CREATE INDEX IF NOT EXISTS idx_embeddings_hash ON embeddings(file_hash)""")
+
+    #migraiton : adding file_hash to moves for databases 
     
     return conn
 
 
-def log_move(source_path, dest_path, chain, confidence, needs_review):
+def log_move(source_path, dest_path, chain, confidence, needs_review, file_hash = None):
     """
     Insert one row into the moves table recording a file move.
 
@@ -57,6 +61,7 @@ def log_move(source_path, dest_path, chain, confidence, needs_review):
         chain (list): the category chain, e.g. ["Documents", "Work"]
         confidence (float or None): classifier confidence for this move
         needs_review (bool): whether this move needs manual review
+        file_hash (str or None): the SHA-256 hash of the file; if None, it will be computed
     Returns:
         None
     """
@@ -70,9 +75,9 @@ def log_move(source_path, dest_path, chain, confidence, needs_review):
     conn = _connect()
 
     conn.execute("""INSERT INTO moves (
-                timestamp, source_path, dest_path, chain, confidence, needs_review) 
-                VALUES (?, ?, ?, ?, ?, ?)""",
-                (timestamp, source_path, dest_path, chain_json, confidence, needs_review_int))
+                timestamp, source_path, dest_path, chain, confidence, needs_review, file_hash) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (timestamp, source_path, dest_path, chain_json, confidence, needs_review_int, file_hash))
 
     conn.commit()
     conn.close()
@@ -106,6 +111,7 @@ def get_recent_moves(limit = 25):
             "confidence": row["confidence"],
             "needs_review": bool(row["needs_review"]),
             "undone": bool(row["undone"]),
+            "file_hash": row["file_hash"],
         }
 
         moves.append(move)
@@ -263,3 +269,25 @@ def get_embedding_by_hash(file_hash, model_name, modality):
         return None
 
     return np.frombuffer(row["embedding"], dtype=np.float32)
+
+def find_duplicate(file_hash):
+    """
+    Finds and earlier move of an identical file that is still on disk
+
+    Args:
+        file_hash (str): the SHA-256 hash of the file
+    Returns:
+        dict or None: the move's data (same shape as get_recent_moves's
+                       dicts), or None if no row matches file_hash
+    """
+
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT id, dest_path FROM moves WHERE file_hash = ? AND undone = 0 ORDER BY id ASC", (file_hash,)
+    ).fetchall()
+    conn.close()
+
+    for row in rows:
+        if Path(row["dest_path"]).exists():
+            return get_move(row["id"])
+    return None

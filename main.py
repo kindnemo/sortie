@@ -1,4 +1,4 @@
-from sortie.core.extension_classifier.classifier import main
+from sortie.services.watcher import main
 
 
 if __name__ == "__main__":

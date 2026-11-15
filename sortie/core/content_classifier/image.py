@@ -1,4 +1,4 @@
-from sortie.core.config import clip_model
+from sortie.core.content_classifier import clip_model
 
 THRESHOLD = 0.22  # Placeholder. Calibrating later
 _text_cache = {}

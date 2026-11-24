@@ -1,4 +1,15 @@
-from sortie.core.content_classifier import clip_model
+import numpy as np
+from sortie.core.content_classifier.clip_model import backend
+from typing import NamedTuple
+import logging
+logger = logging.getLogger(__name__)
+
+class ImageResult(NamedTuple):
+    # Represents the result of classifying an image.
+    name: str
+    confidence: float
+    embedding: np.ndarray
+
 
 THRESHOLD = 0.22  # Placeholder. Calibrating later
 _text_cache = {}
@@ -25,27 +36,23 @@ def _text_features(candidates):
     Args:
         candidates (list): List of tuples containing subcategory names and their corresponding prompts.
     Returns:
-        dict: A dictionary mapping subcategory names to their normalized CLIP embedding vectors.
+         (K, 512) array
     """
 
-    import torch #lazy loading torch to make sure startup time is fast 
     key = tuple((name, tuple(prompts)) for name, prompts in candidates)
     if key in _text_cache:
         return _text_cache[key]
 
     flat = [p for _, prompts in candidates for p in prompts]
-    with torch.no_grad():
-        f = clip_model.encode_text(clip_model.tokenizer(flat))
-    f = f / f.norm(dim =-1 , keepdim = True)
-
+    f = backend.encode_texts(flat)
     rows, i = [], 0
 
     for _, prompts in candidates:
-        avg = f[i : i + len(prompts)].mean(dim = 0)
-        rows.append(avg / avg.norm())
+        avg = f[i:i+len(prompts)].mean(axis=0)
+        rows.append(avg/np.linalg.norm(avg))
         i += len(prompts)
 
-    out = torch.stack(rows)
+    out = np.stack(rows)
     _text_cache[key] = out
     return out
 
@@ -53,13 +60,10 @@ def _text_features(candidates):
 def image_features(path):
     """ Converts an image into a normalized CLIP embedding vector. """
     
-    import torch
+
     from PIL import Image
     with Image.open(path) as img:
-        tensor = clip_model.preprocess(img.convert("RGB")).unsqueeze(0)
-    with torch.no_grad():
-        f = clip_model.model.encode_image(tensor)
-    return f/f.norm(dim=-1, keepdim=True)
+        return backend.encode_image(img)
 
 def score_image(path, candidates):
     """
@@ -69,19 +73,20 @@ def score_image(path, candidates):
         path (str): Path to the image file.
         candidates (list): List of tuples containing subcategory names and their corresponding prompts.
     Returns:
-        list: A list of floats representing the cosine smilarity scores between the image and each subcategory's text prompts.
+        (scores, embedding)
     """
     # Making sure that the model is loaded into memory, return None if not
-    if not clip_model.is_loaded():
+    if not backend.ensure_loaded():
         return None, None
 
     try:
         img_f = image_features(path)
     except Exception as e:
         print(f"Error processing image {path}: {e}")
+        logger.warning("Error Processing image %s: %s", path, e)
         return None, None
 
-    sims = (img_f @ _text_features(candidates).T).squeeze(0)
+    sims = img_f @ _text_features(candidates).T
     return sims.tolist(), img_f
 
 def classify_image(path, candidates):
@@ -92,13 +97,13 @@ def classify_image(path, candidates):
         path (str): Path to the image file.
         candidates (list): List of tuples containing subcategory names and their corresponding prompts.
     Returns:
-        str or None: The name of the highest scoring subcategory if it exceeds the threshold, otherwise None.
+        ImageResult or None: A named tuple containing name of the candidate, confidence level and embedding
     """
     scores, img_f = score_image(path, candidates)
     if scores is None:
-        return None, None
+        return None
     best = max(range(len(scores)), key = scores.__getitem__)
-    return candidates[best][0], scores[best], img_f
+    return ImageResult(name = candidates[best][0], confidence = float(scores[best]), embedding = img_f)
 
 def pick_folder(name, confidence, threshold = THRESHOLD):
     # Picks the folder if the confidence is above the threshold, otherwise returns None

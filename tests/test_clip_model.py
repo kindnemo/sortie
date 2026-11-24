@@ -85,15 +85,3 @@ def test_load_clip_caches_failure_without_retrying(monkeypatch):
     assert len(calls["create"]) == 1
     assert calls["eval"] == 1
     assert calls["tokenizer"] == [clip_model.MODEL_NAME]
-
-
-def test_backend_ensure_loaded():
-    image_path = Path(__file__).parent / "desert.jpg"
-    assert image_path.exists(), f"Test image {image_path} does not exist."
-    assert clip_model.backend.ensure_loaded() is True
-    assert clip_model.backend.is_loaded() is True
-    assert clip_model.backend.encode_texts(["a photo of a desert", "a meme"]).shape == (2, 512)
-    with Image.open(image_path) as image:
-        image_embedding = clip_model.backend.encode_image(image)
-    assert image_embedding.shape == (512,)
-

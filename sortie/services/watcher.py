@@ -3,6 +3,10 @@ import sys
 import time 
 import shutil
 from pathlib import Path
+from sortie.core import movelog, settings
+
+
+saved = settings.get_watch_directory()
 
 if __package__ in {None, ""}:
     # watcher.py now lives directly under sortie/services, so parents[2] is
@@ -168,20 +172,52 @@ class Handler(FileSystemEventHandler):
             return None
         self.handle_files(Path(event.dest_path))
 
+def resolve_watch_directory(cli_value: str | None) -> tuple[Path, str]:
+    """
+    Decide which folder to watch.
 
-def main(argv: list[str] | None = None):
+    Priority: command-line argument, then saved setting, then dev default.
+    Returns (folder, source) where source names where the folder came from.
+    """
+    if cli_value:
+        return Path(cli_value), "command line"
+
+    saved = settings.get_watch_directory() if settings is not None else None
+    if saved is not None:
+        return saved, "saved settings"
+
+    return WATCH_DIRECTORY, "dev default"
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Watch a folder and sort files by extension.")
     parser.add_argument(
         "watch_directory",
         nargs="?",
-        default=str(WATCH_DIRECTORY),
-        help=f"Folder to watch. Defaults to {WATCH_DIRECTORY}",
+        default=None,
+        help="Folder to watch. If omitted, the saved setting is used.",
     )
     args = parser.parse_args(argv)
 
-    watch = OnMyWatch(Path(args.watch_directory))
-    watch.run()
+    folder, source = resolve_watch_directory(args.watch_directory)
 
+    # Only the dev fallback is auto-created. A CLI or saved folder that
+    # doesn't exist should be reported, not silently recreated.
+    if source == "dev default":
+        print(f"No watch folder configured, using dev default: {folder}")
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            print(f"Could not create dev folder {folder}: {e}")
+            return 1
+
+    if not folder.is_dir():
+        print(f"Watch folder not found: {folder} (from {source})")
+        return 1
+
+    print(f"Watching {folder} (from {source})")
+    OnMyWatch(folder).run()
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

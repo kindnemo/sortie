@@ -21,9 +21,6 @@ from sortie.core.hash_util import compute_file_hash
 from sortie.core import movelog
 
 
-# Defining a category folder for cross-validating the sub-folders in Handler functions
-category_folders = set(EXT_MAP.values()) | {"Others", "Duplicates"}
-
 # Directory to monitor
 # Changing it later to user based input
 WATCH_DIRECTORY = Path("D:/sortie-test-folder")
@@ -100,12 +97,14 @@ class OnMyWatch:
 class Handler(FileSystemEventHandler):
     def __init__(self, watch_directory: Path):
         self.watch_directory = watch_directory
+        self.watch_root = Path(watch_directory).resolve()
 
 
     # Main File Handler Function
     def handle_files(self, file_path: Path):
+
         # Checking if a file is already in a subfolder to prevent infinite calling of the JIT function 
-        if file_path.parent.name in category_folders:
+        if file_path.parent.resolve() != self.watch_root:
             return
 
         extension = file_path.suffix.lower()

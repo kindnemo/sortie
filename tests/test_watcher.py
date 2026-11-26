@@ -12,6 +12,13 @@ def watch_directory(tmp_path):
     return tmp_path / "watch"
 
 
+@pytest.fixture(autouse=True)
+def isolated_movelog_db(tmp_path, monkeypatch):
+    db_file = tmp_path / "movelog.db"
+    monkeypatch.setattr(watcher.movelog, "data_path", lambda filename: db_file)
+    return db_file
+
+
 # ---------- FileClassifier ----------
 
 def test_unique_destination_returns_original_when_available(tmp_path):
@@ -77,8 +84,9 @@ def test_classify_file_does_not_move_file_already_in_destination(watch_directory
 # ---------- Handler ----------
 
 @pytest.mark.parametrize("name", ["partial.tmp", "download.crdownload"])
-def test_handler_ignores_temporary_files(watch_directory, tmp_path, monkeypatch, name):
-    source = tmp_path / name
+def test_handler_ignores_temporary_files(watch_directory, monkeypatch, name):
+    watch_directory.mkdir()
+    source = watch_directory / name
     source.write_text("content")
     wait_for_completion = Mock(return_value=True)
     monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
@@ -101,21 +109,53 @@ def test_handler_ignores_files_already_in_category(watch_directory, monkeypatch)
     wait_for_completion.assert_not_called()
 
 
-def test_handler_stops_when_file_is_not_complete(watch_directory, tmp_path, monkeypatch):
-    source = tmp_path / "report.txt"
+def test_handler_processes_file_in_watch_root(tmp_path, monkeypatch):
+    source = tmp_path / "a.jpg"
+    source.write_text("image data")
+    wait_for_completion = Mock(return_value=True)
+    monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
+    monkeypatch.setattr(watcher, "compute_file_hash", lambda _: "file-hash")
+    monkeypatch.setattr(watcher.movelog, "find_duplicate", lambda _: False)
+    monkeypatch.setattr(watcher.movelog, "log_move", Mock())
+
+    watcher.Handler(tmp_path).handle_files(source)
+
+    wait_for_completion.assert_called_once_with(source)
+    assert (tmp_path / "Images" / "a.jpg").exists()
+
+
+def test_handler_rejects_file_in_nested_subfolder(tmp_path, monkeypatch):
+    source = tmp_path / "Images" / "GIFs" / "a.gif"
+    source.parent.mkdir(parents=True)
+    source.write_text("gif data")
+    wait_for_completion = Mock(return_value=True)
+    monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
+
+    watcher.Handler(tmp_path).handle_files(source)
+
+    wait_for_completion.assert_not_called()
+    assert source.exists()
+
+
+def test_handler_stops_when_file_is_not_complete(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "report.txt"
     source.write_text("content")
-    monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: False)
+    wait_for_completion = Mock(return_value=False)
+    monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
     classify_file = Mock()
     monkeypatch.setattr(watcher.FileClassifier, "classify_file", classify_file)
 
     watcher.Handler(watch_directory).handle_files(source)
 
+    wait_for_completion.assert_called_once_with(source)
     classify_file.assert_not_called()
     assert source.exists()
 
 
-def test_handler_moves_file_and_logs_hash(watch_directory, tmp_path, monkeypatch):
-    source = tmp_path / "report.txt"
+def test_handler_moves_file_and_logs_hash(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "report.txt"
     source.write_text("content")
     monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: True)
     monkeypatch.setattr(watcher, "compute_file_hash", lambda _: "file-hash")
@@ -137,8 +177,9 @@ def test_handler_moves_file_and_logs_hash(watch_directory, tmp_path, monkeypatch
     )
 
 
-def test_handler_sends_duplicate_to_duplicates_folder(watch_directory, tmp_path, monkeypatch):
-    source = tmp_path / "report.txt"
+def test_handler_sends_duplicate_to_duplicates_folder(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "report.txt"
     source.write_text("content")
     monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: True)
     monkeypatch.setattr(watcher, "compute_file_hash", lambda _: "known-hash")

@@ -25,13 +25,20 @@ EXT_MAP = {
     ".jpg": "Images",
     ".jpeg": "Images",
     ".png": "Images",
-    ".gif": "Images",
-    ".svg": "Images",
     ".webp": "Images",
     ".bmp": "Images",
     ".tiff": "Images",
     ".raw": "Images",
-    ".heic": "Images", # Apple photos
+    ".heic": "Images",  # Apple and Samsung photos
+    ".heif": "Images",  # Apple and Samsung photos
+    ".gif": "Images/GIFs",
+    ".svg": "Images/Vector",
+    ".raw": "Images/RAW", #Raw camera photos
+    ".cr2": "Images/RAW",
+    ".nef": "Images/RAW",
+    ".arw": "Images/RAW",
+    ".dng": "Images/RAW",
+
 
     # Videos
     ".mp4": "Videos",

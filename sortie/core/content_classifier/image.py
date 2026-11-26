@@ -23,7 +23,7 @@ def image_candidates(tree):
         tree (CategoryNode): The root of the category tree.
     """
 
-    images = tree["images"] 
+    images = tree.children["Images"] 
     return[
         (c.name, c.prompts) for c in images.children.values() if c.prompts
     ]

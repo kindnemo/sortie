@@ -1,50 +1,7 @@
-import numpy as np
 import pytest
-from PIL import Image
+
 from sortie.core.content_classifier import image
-
-
-# ── FakeBackend ──────────────────────────────────────────────────────
-class FakeBackend:
-    def __init__(self, text_vecs, image_vec, loaded=True):
-        self.text_vecs = text_vecs      # {"prompt string": np.array}
-        self.image_vec = image_vec
-        self.loaded = loaded
-        self.text_calls = 0
-
-    def ensure_loaded(self):
-        return self.loaded
-
-    def is_loaded(self):
-        return self.loaded
-
-    def encode_texts(self, texts):
-        self.text_calls+=1
-        return np.stack([self.text_vecs[t] for t in texts])
-
-    def encode_image(self, img):
-        return self.image_vec
-
-
-# ── Fixtures ─────────────────────────────────────────────────────────
-@pytest.fixture(autouse=True)
-def fresh_cache(monkeypatch):
-    """Wipe _text_cache before every test so cached vectors don't leak."""
-    monkeypatch.setattr(image, "_text_cache", {})
-
-
-@pytest.fixture
-def sample_image(tmp_path):
-    """Create a tiny real JPEG so Image.open() doesn't fail."""
-    p = tmp_path / "x.jpg"
-    Image.new("RGB", (8, 8)).save(p)
-    return p
-
-
-# ── Shared test vectors ──────────────────────────────────────────────
-E = np.eye(4, dtype=np.float32)   # 4 orthogonal unit vectors
-CANDS = [("deserts", ["desert"]), ("memes", ["meme"]), ("shots", ["shot"])]
-TEXT = {"desert": E[0], "meme": E[1], "shot": E[2]}
+from helpers import FakeBackend, E, CANDS, TEXT
 
 
 # ── pick_folder (pure function, no fakes needed) ─────────────────────
@@ -96,7 +53,7 @@ def test_missing_file(monkeypatch, tmp_path):
 
 
 def test_cache_hit(monkeypatch, sample_image):
-    """Two calls with the same candidates should produce only one cache entry."""
+    """Two calls with the same candidates should produce only one encode_texts call."""
     fake = FakeBackend(TEXT, E[0])
     monkeypatch.setattr(image, "backend", fake)
     image.classify_image(sample_image, CANDS)
@@ -112,7 +69,9 @@ def test_threshold_passthrough(monkeypatch, sample_image):
     assert image.pick_folder(r.name, r.confidence, threshold=0.5) == "deserts"
     assert image.pick_folder(r.name, r.confidence, threshold=1.5) is None
 
+
 def test_averaging_renormalizes(monkeypatch, sample_image):
+    """Two-prompt candidate: averaged vector must be re-normalized."""
     cands = [("shots", ["a", "b"])]
     text = {"a": E[0], "b": E[1]}
     monkeypatch.setattr(image, "backend", FakeBackend(text, E[0]))

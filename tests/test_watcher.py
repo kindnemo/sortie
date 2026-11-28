@@ -4,12 +4,20 @@ from unittest.mock import Mock
 
 import pytest
 
+from sortie.core.content_classifier.dispatch import ContentDecision, NEEDS_REVIEW, NO_OPINION
 from sortie.services import watcher
 
 
 @pytest.fixture
 def watch_directory(tmp_path):
     return tmp_path / "watch"
+
+
+@pytest.fixture(autouse=True)
+def isolated_movelog_db(tmp_path, monkeypatch):
+    db_file = tmp_path / "movelog.db"
+    monkeypatch.setattr(watcher.movelog, "data_path", lambda filename: db_file)
+    return db_file
 
 
 # ---------- FileClassifier ----------
@@ -77,8 +85,9 @@ def test_classify_file_does_not_move_file_already_in_destination(watch_directory
 # ---------- Handler ----------
 
 @pytest.mark.parametrize("name", ["partial.tmp", "download.crdownload"])
-def test_handler_ignores_temporary_files(watch_directory, tmp_path, monkeypatch, name):
-    source = tmp_path / name
+def test_handler_ignores_temporary_files(watch_directory, monkeypatch, name):
+    watch_directory.mkdir()
+    source = watch_directory / name
     source.write_text("content")
     wait_for_completion = Mock(return_value=True)
     monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
@@ -101,21 +110,53 @@ def test_handler_ignores_files_already_in_category(watch_directory, monkeypatch)
     wait_for_completion.assert_not_called()
 
 
-def test_handler_stops_when_file_is_not_complete(watch_directory, tmp_path, monkeypatch):
-    source = tmp_path / "report.txt"
+def test_handler_processes_file_in_watch_root(tmp_path, monkeypatch):
+    source = tmp_path / "a.jpg"
+    source.write_text("image data")
+    wait_for_completion = Mock(return_value=True)
+    monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
+    monkeypatch.setattr(watcher, "compute_file_hash", lambda _: "file-hash")
+    monkeypatch.setattr(watcher.movelog, "find_duplicate", lambda _: False)
+    monkeypatch.setattr(watcher.movelog, "log_move", Mock())
+
+    watcher.Handler(tmp_path).handle_files(source)
+
+    wait_for_completion.assert_called_once_with(source)
+    assert (tmp_path / "Images" / "a.jpg").exists()
+
+
+def test_handler_rejects_file_in_nested_subfolder(tmp_path, monkeypatch):
+    source = tmp_path / "Images" / "GIFs" / "a.gif"
+    source.parent.mkdir(parents=True)
+    source.write_text("gif data")
+    wait_for_completion = Mock(return_value=True)
+    monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
+
+    watcher.Handler(tmp_path).handle_files(source)
+
+    wait_for_completion.assert_not_called()
+    assert source.exists()
+
+
+def test_handler_stops_when_file_is_not_complete(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "report.txt"
     source.write_text("content")
-    monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: False)
+    wait_for_completion = Mock(return_value=False)
+    monkeypatch.setattr(watcher, "wait_for_file_completion", wait_for_completion)
     classify_file = Mock()
     monkeypatch.setattr(watcher.FileClassifier, "classify_file", classify_file)
 
     watcher.Handler(watch_directory).handle_files(source)
 
+    wait_for_completion.assert_called_once_with(source)
     classify_file.assert_not_called()
     assert source.exists()
 
 
-def test_handler_moves_file_and_logs_hash(watch_directory, tmp_path, monkeypatch):
-    source = tmp_path / "report.txt"
+def test_handler_moves_file_and_logs_hash(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "report.txt"
     source.write_text("content")
     monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: True)
     monkeypatch.setattr(watcher, "compute_file_hash", lambda _: "file-hash")
@@ -137,8 +178,9 @@ def test_handler_moves_file_and_logs_hash(watch_directory, tmp_path, monkeypatch
     )
 
 
-def test_handler_sends_duplicate_to_duplicates_folder(watch_directory, tmp_path, monkeypatch):
-    source = tmp_path / "report.txt"
+def test_handler_sends_duplicate_to_duplicates_folder(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "report.txt"
     source.write_text("content")
     monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: True)
     monkeypatch.setattr(watcher, "compute_file_hash", lambda _: "known-hash")
@@ -148,6 +190,122 @@ def test_handler_sends_duplicate_to_duplicates_folder(watch_directory, tmp_path,
     watcher.Handler(watch_directory).handle_files(source)
 
     assert (watch_directory / "Duplicates" / "report.txt").exists()
+
+
+def _setup_handler_mocks(monkeypatch, *, is_duplicate=False, file_hash="file-hash"):
+    monkeypatch.setattr(watcher, "wait_for_file_completion", lambda _: True)
+    monkeypatch.setattr(watcher, "compute_file_hash", lambda _: file_hash)
+    monkeypatch.setattr(watcher.movelog, "find_duplicate", lambda _: is_duplicate)
+    log_move = Mock()
+    monkeypatch.setattr(watcher.movelog, "log_move", log_move)
+    return log_move
+
+
+def test_handler_routes_classified_image_to_subfolder(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "photo.jpg"
+    source.write_text("image data")
+    log_move = _setup_handler_mocks(monkeypatch)
+    monkeypatch.setattr(watcher, "classify_content", lambda *_: ContentDecision("memes", 0.9))
+
+    watcher.Handler(watch_directory, tree=object()).handle_files(source)
+
+    destination = watch_directory / "Images" / "memes" / "photo.jpg"
+    assert destination.exists()
+    log_move.assert_called_once_with(
+        source_path=str(source),
+        dest_path=str(destination),
+        chain=["Images", "memes"],
+        confidence=0.9,
+        needs_review=False,
+        file_hash="file-hash",
+    )
+
+
+def test_handler_routes_low_confidence_image_to_needs_review(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "photo.jpg"
+    source.write_text("image data")
+    log_move = _setup_handler_mocks(monkeypatch)
+    monkeypatch.setattr(watcher, "classify_content", lambda *_: ContentDecision(NEEDS_REVIEW, 0.1))
+
+    watcher.Handler(watch_directory, tree=object()).handle_files(source)
+
+    destination = watch_directory / "Images" / "Needs Review" / "photo.jpg"
+    assert destination.exists()
+    log_move.assert_called_once_with(
+        source_path=str(source),
+        dest_path=str(destination),
+        chain=["Images", "Needs Review"],
+        confidence=0.1,
+        needs_review=True,
+        file_hash="file-hash",
+    )
+
+
+def test_handler_keeps_no_opinion_image_in_images_root(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "photo.jpg"
+    source.write_text("image data")
+    log_move = _setup_handler_mocks(monkeypatch)
+    monkeypatch.setattr(watcher, "classify_content", lambda *_: NO_OPINION)
+
+    watcher.Handler(watch_directory, tree=object()).handle_files(source)
+
+    destination = watch_directory / "Images" / "photo.jpg"
+    assert destination.exists()
+    log_move.assert_called_once_with(
+        source_path=str(source),
+        dest_path=str(destination),
+        chain=["Images"],
+        confidence=None,
+        needs_review=False,
+        file_hash="file-hash",
+    )
+
+
+def test_handler_skips_classify_content_for_duplicate(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "photo.jpg"
+    source.write_text("image data")
+    log_move = _setup_handler_mocks(monkeypatch, is_duplicate=True, file_hash="known-hash")
+    classify_mock = Mock()
+    monkeypatch.setattr(watcher, "classify_content", classify_mock)
+
+    watcher.Handler(watch_directory, tree=object()).handle_files(source)
+
+    destination = watch_directory / "Duplicates" / "photo.jpg"
+    assert destination.exists()
+    classify_mock.assert_not_called()
+    log_move.assert_called_once_with(
+        source_path=str(source),
+        dest_path=str(destination),
+        chain=["Duplicates"],
+        confidence=None,
+        needs_review=False,
+        file_hash="known-hash",
+    )
+
+
+def test_handler_splits_nested_extension_category_for_gif(watch_directory, monkeypatch):
+    watch_directory.mkdir()
+    source = watch_directory / "anim.gif"
+    source.write_text("gif data")
+    log_move = _setup_handler_mocks(monkeypatch)
+    monkeypatch.setattr(watcher, "classify_content", Mock(return_value=NO_OPINION))
+
+    watcher.Handler(watch_directory, tree=object()).handle_files(source)
+
+    destination = watch_directory / "Images" / "GIFs" / "anim.gif"
+    assert destination.exists()
+    log_move.assert_called_once_with(
+        source_path=str(source),
+        dest_path=str(destination),
+        chain=["Images", "GIFs"],
+        confidence=None,
+        needs_review=False,
+        file_hash="file-hash",
+    )
 
 
 @pytest.mark.parametrize(
@@ -209,7 +367,7 @@ def test_main_starts_watcher_for_existing_cli_directory(tmp_path, monkeypatch, c
     started_with = []
 
     class FakeWatch:
-        def __init__(self, folder):
+        def __init__(self, folder, tree=None):
             started_with.append(folder)
 
         def run(self):

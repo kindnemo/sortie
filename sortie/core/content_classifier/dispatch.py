@@ -14,7 +14,7 @@ class ContentDecision(NamedTuple):
 
 NO_OPINION = ContentDecision(None)
 NEEDS_REVIEW = "Needs Review"
-IMAGE_EXTENSION = {".jpg", ".jpeg", ".png", ".webp"}
+IMAGE_EXTENSION = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
 
 def classify_content(path, top_category, tree, threshold=THRESHOLD):
     """

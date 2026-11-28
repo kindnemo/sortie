@@ -18,7 +18,9 @@ from watchdog.events import FileSystemEventHandler
 from sortie.core.extension_classifier.JIT import wait_for_file_completion
 from sortie.core.extension_classifier.extension_map import EXT_MAP
 from sortie.core.hash_util import compute_file_hash
-from sortie.core import movelog
+from sortie.core.config import CategoryNode
+from sortie.core.content_classifier.image import image_candidates
+from sortie.core.content_classifier.dispatch import classify_content, NO_OPINION, NEEDS_REVIEW
 
 
 # Directory to monitor
@@ -75,12 +77,13 @@ class FileClassifier:
 
 class OnMyWatch:
 
-    def __init__(self, watch_directory : Path = WATCH_DIRECTORY):  #Defaulting to D directory for now
+    def __init__(self, watch_directory : Path = WATCH_DIRECTORY, tree = None):  #Defaulting to D directory for now
         self.watch_directory = Path(watch_directory )
         self.observer = Observer()
+        self.tree = tree
 
     def run(self):
-        event_handler = Handler(self.watch_directory)
+        event_handler = Handler(self.watch_directory, tree=self.tree)
         self.observer.schedule(event_handler, self.watch_directory, recursive=False)
         self.observer.start()
         try:
@@ -95,10 +98,10 @@ class OnMyWatch:
 
 # Handler class to handle all events
 class Handler(FileSystemEventHandler):
-    def __init__(self, watch_directory: Path):
+    def __init__(self, watch_directory: Path, tree=None):
         self.watch_directory = watch_directory
         self.watch_root = Path(watch_directory).resolve()
-
+        self.tree = tree
 
     # Main File Handler Function
     def handle_files(self, file_path: Path):
@@ -115,10 +118,8 @@ class Handler(FileSystemEventHandler):
         print(f"Hey, {file_path} is ready!")
         print(f"File name: {file_path.name}, Extension: {file_path.suffix}")
 
-        # Skipping the handling if the path doesn't exist
         if not file_path.exists():
-            return 
-        
+            return
 
         if not wait_for_file_completion(file_path):
             return
@@ -140,18 +141,33 @@ class Handler(FileSystemEventHandler):
             is_duplicate = True
         folder_name = "Duplicates" if is_duplicate else EXT_MAP.get(extension, "Others")
 
+
+        # Plugging in CLIP Classification from here
+        decision = NO_OPINION
+        if self.tree is not None and not is_duplicate:
+            decision = classify_content(file_path, folder_name, self.tree)
+
+        chain = list(Path(folder_name).parts)
+        if decision.subfolder is not None:
+            chain.append(decision.subfolder)
+        target = "/".join(chain)
+            
+        if not file_path.exists():
+            return
+
+
         classifier = FileClassifier(self.watch_directory)
-        new_path = classifier.classify_file(file_path, folder_override=folder_name)
+        new_path = classifier.classify_file(file_path, folder_override=target)
 
         if new_path:
             try:
                 movelog.log_move(
-                    source_path=str(file_path),
-                    dest_path=str(new_path),
-                    chain=[folder_name],
-                    confidence=None,
-                    needs_review=False,
-                    file_hash=file_hash
+                    source_path = str(file_path),
+                    dest_path = str(new_path),
+                    chain = chain,
+                    confidence = decision.confidence,
+                    needs_review = (decision.subfolder == NEEDS_REVIEW),
+                    file_hash = file_hash
                 )
             except Exception as e:
                 print(f"Error logging move for {file_path.name}: {e}")
@@ -214,8 +230,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Watch folder not found: {folder} (from {source})")
         return 1
 
+    tree = None
+    try:
+        tree = CategoryNode.load_category_tree()
+        cands = image_candidates(tree)
+        if not cands:
+            print("Warning: no image subcategories with prompts found")
+        else:
+            print(f"CLIP candidates: {[name for name, _ in cands]}")
+    except Exception as e:
+        print(f"Warning: could not load category tree ({e}); sorting by extension only")
+    
     print(f"Watching {folder} (from {source})")
-    OnMyWatch(folder).run()
+    OnMyWatch(folder, tree=tree).run()
     return 0
 
 if __name__ == "__main__":
